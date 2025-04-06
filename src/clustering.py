@@ -79,9 +79,9 @@ def RunKMeans(adj_matrix, k=5):
     return list(clustering.labels_)
 
 
-#os.environ['R_HOME'] = '../R/R-4.0.3_openblas/R-4.0.3'  #######Need Upadating   
+#os.environ['R_HOME'] = '../R/R-4.0.3_openblas/R-4.0.3'  #######Need Updating   
 
-def mclust_R(adata, num_cluster, modelNames='EEE', used_obsm='emb_pca', random_seed=2020):
+def mclust_R(adata, num_cluster, modelNames='EEE', used_obsm='emb_pca', random_seed=0):
     """\
     Clustering using the mclust algorithm.
     The parameters are the same as those in the R package mclust.
