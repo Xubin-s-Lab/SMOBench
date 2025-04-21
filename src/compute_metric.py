@@ -423,3 +423,377 @@ def jaccard(result,label):
 def Dice(result,label):
     TP, TN, FP, FN = contingency_table(result, label)
     return 2*TP/(2*TP + FP +FN)
+
+
+
+###isolated
+
+
+import numpy as np
+import pandas as pd
+from sklearn.metrics.cluster import silhouette_samples, silhouette_score
+from sklearn.metrics import f1_score
+from scipy.sparse import csr_matrix
+from numba import njit
+
+# ========================
+# Silhouette评分
+# ========================
+def silhouette_simple(X, labels, scale=True):
+    """计算平均轮廓宽度"""
+    asw = silhouette_score(X=X, labels=labels)
+    if scale:
+        asw = (asw + 1) / 2
+    return asw
+
+
+def silhouette_batch(X, batch_labels, group_labels, scale=True):
+    """计算批次轮廓分数"""
+    sil_per_label = []
+    
+    for group in np.unique(group_labels):
+        group_idx = np.where(group_labels == group)[0]
+        n_batches = len(np.unique(batch_labels[group_idx]))
+        
+        if n_batches <= 1 or n_batches == len(group_idx):
+            continue
+        
+        sil = silhouette_samples(X[group_idx], batch_labels[group_idx])
+        sil = np.abs(sil)
+        
+        if scale:
+            sil = 1 - sil
+            
+        sil_per_label.extend([(group, s) for s in sil])
+    
+    if not sil_per_label:
+        return np.nan
+        
+    sil_df = pd.DataFrame.from_records(sil_per_label, columns=["group", "score"])
+    return sil_df.groupby("group").mean()["score"].mean()
+
+
+# ========================
+# LISI评分
+# ========================
+def graph_ilisi(knn_graph, batch_labels, scale=True):
+    """计算图形整合LISI (iLISI)"""
+    return _compute_lisi(knn_graph, batch_labels, scale, is_ilisi=True)
+
+
+def graph_clisi(knn_graph, cell_labels, scale=True):
+    """计算图形细胞类型LISI (cLISI)"""
+    return _compute_lisi(knn_graph, cell_labels, scale, is_ilisi=False)
+
+
+def _compute_lisi(knn_graph, labels, scale=True, is_ilisi=True):
+    """LISI计算核心函数"""
+    # 确保为csr矩阵
+    if not isinstance(knn_graph, csr_matrix):
+        knn_graph = csr_matrix(knn_graph)
+    
+    # 提取KNN信息
+    n_cells = knn_graph.shape[0]
+    n_neighbors = min(90, max(15, knn_graph.getnnz(axis=1).max()))
+    perplexity = n_neighbors / 3
+    
+    # 类别编码
+    unique_labels = np.unique(labels)
+    n_labels = len(unique_labels)
+    label_to_idx = {label: idx for idx, label in enumerate(unique_labels)}
+    label_idx = np.array([label_to_idx[label] for label in labels])
+    
+    # 计算LISI
+    lisi_values = []
+    
+    for i in range(n_cells):
+        # 获取邻居和连接值
+        idx_start, idx_end = knn_graph.indptr[i], knn_graph.indptr[i+1]
+        if idx_start == idx_end:  # 没有邻居
+            continue
+            
+        nn_indices = knn_graph.indices[idx_start:idx_end]
+        nn_weights = knn_graph.data[idx_start:idx_end]
+        
+        if len(nn_indices) < 5:  # 邻居太少
+            continue
+            
+        # 计算距离（从连接值）
+        distances = -np.log(nn_weights)
+        
+        # 计算概率分布P
+        beta = 1.0
+        H, P = Hbeta(distances, beta)
+        
+        # 优化beta以匹配perplexity
+        logU = np.log(perplexity)
+        tries = 0
+        
+        while np.abs(H - logU) > 0.01 and tries < 20:
+            if H > logU:
+                beta *= 2
+            else:
+                beta /= 2
+            H, P = Hbeta(distances, beta)
+            tries += 1
+        
+        # 计算Simpson指数
+        nn_labels = label_idx[nn_indices]
+        one_hot = np.eye(n_labels)[nn_labels]
+        sumP = np.matmul(P, one_hot)
+        simpson = np.dot(sumP, sumP)
+        
+        # LISI = 1/Simpson
+        lisi = 1.0 / simpson if simpson > 0 else np.nan
+        lisi_values.append(lisi)
+    
+    # 计算中位数
+    lisi_median = np.nanmedian(lisi_values)
+    
+    # 缩放
+    if scale:
+        if is_ilisi:  # iLISI: 值越大越好
+            return (lisi_median - 1) / (n_labels - 1) if n_labels > 1 else 0
+        else:  # cLISI: 值越小越好
+            return (n_labels - lisi_median) / (n_labels - 1) if n_labels > 1 else 0
+    
+    return lisi_median
+
+
+@njit
+def Hbeta(distances, beta):
+    """计算H和P"""
+    P = np.exp(-distances * beta)
+    sumP = np.sum(P)
+    
+    if sumP == 0:
+        return 0, np.zeros_like(distances)
+        
+    H = np.log(sumP) + beta * np.sum(distances * P) / sumP
+    P = P / sumP
+    
+    return H, P
+
+
+# ========================
+# 孤立标签评分
+# ========================
+def isolated_labels_f1(y_true, y_pred, batches, iso_threshold=None):
+    """计算孤立标签的F1分数"""
+    # 获取孤立标签
+    isolated_labels = get_isolated_labels(y_true, batches, iso_threshold)
+    
+    if not isolated_labels:
+        return None
+    
+    # 计算F1分数
+    scores = []
+    for label in isolated_labels:
+        max_f1 = 0
+        y_true_binary = (y_true == label)
+        
+        for cluster in np.unique(y_pred):
+            y_pred_binary = (y_pred == cluster)
+            f1 = f1_score(y_true_binary, y_pred_binary)
+            max_f1 = max(max_f1, f1)
+            
+        scores.append(max_f1)
+    
+    return np.mean(scores)
+
+
+def isolated_labels_asw(y_true, embeddings, batches, iso_threshold=None, scale=True):
+    """计算孤立标签的ASW分数"""
+    # 获取孤立标签
+    isolated_labels = get_isolated_labels(y_true, batches, iso_threshold)
+    
+    if not isolated_labels:
+        return None
+    
+    # 计算轮廓分数
+    silhouette_values = silhouette_samples(embeddings, y_true)
+    
+    scores = []
+    for label in isolated_labels:
+        mask = y_true == label
+        if np.sum(mask) > 0:
+            score = np.mean(silhouette_values[mask])
+            if scale:
+                score = (score + 1) / 2
+            scores.append(score)
+    
+    return np.mean(scores) if scores else None
+
+
+def get_isolated_labels(labels, batches, iso_threshold=None):
+    """获取孤立标签"""
+    # 创建DataFrame并去重
+    df = pd.DataFrame({'label': labels, 'batch': batches})
+    tmp = df.drop_duplicates()
+    
+    # 计算每个标签的批次数
+    batch_per_lab = tmp.groupby('label').agg({'batch': 'nunique'})
+    
+    # 确定阈值
+    if iso_threshold is None:
+        iso_threshold = batch_per_lab['batch'].min()
+    
+    if iso_threshold == len(np.unique(batches)):
+        return []
+    
+    return batch_per_lab[batch_per_lab['batch'] <= iso_threshold].index.tolist()
+
+
+
+
+from scipy.stats import chi2
+from scipy.sparse import csr_matrix
+def kBET_from_knn_matrix(knn_graph, batch_labels, cell_labels, k_neighbors=50, scaled=True, verbose=False):
+    """从KNN图计算kBET分数"""
+    # 确保为CSR格式
+    if not isinstance(knn_graph, csr_matrix):
+        knn_graph = csr_matrix(knn_graph)
+    
+    # 提取KNN索引
+    n_cells = knn_graph.shape[0]
+    knn_indices = np.zeros((n_cells, k_neighbors), dtype=int)
+    
+    for i in range(n_cells):
+        start, end = knn_graph.indptr[i], knn_graph.indptr[i+1]
+        if start == end:  # 没有邻居
+            knn_indices[i] = -1
+            continue
+        
+        neighbors = knn_graph.indices[start:end]
+        weights = knn_graph.data[start:end]
+        
+        # 按权重排序选择前k个
+        if len(neighbors) > k_neighbors:
+            top_k_idx = np.argsort(-weights)[:k_neighbors]
+            knn_indices[i] = neighbors[top_k_idx]
+        else:
+            knn_indices[i, :len(neighbors)] = neighbors
+            knn_indices[i, len(neighbors):] = -1
+    
+    # 计算kBET分数
+    return kBET_score(knn_indices, batch_labels, cell_labels, scaled, verbose=verbose)
+
+
+def kBET_score(knn_indices, batch_labels, cell_labels, scaled=True, return_df=False, verbose=False):
+    """计算kBET批次混合分数"""
+    # 将批次标签转换为数值索引
+    unique_batches = np.unique(batch_labels)
+    batch_to_idx = {label: idx for idx, label in enumerate(unique_batches)}
+    batch_numeric = np.array([batch_to_idx[label] for label in batch_labels])
+    n_batches = len(unique_batches)
+    
+    # 计算全局批次分布
+    global_batch_dist = np.zeros(n_batches)
+    for i in range(n_batches):
+        global_batch_dist[i] = np.sum(batch_numeric == i) / len(batch_numeric)
+    
+    # 找出符合条件的标签
+    counts = pd.DataFrame({'label': cell_labels, 'batch': batch_labels})
+    counts = counts.groupby('label').agg({
+        'label': 'count',
+        'batch': lambda x: len(np.unique(x))
+    })
+    
+    valid_labels = counts[(counts['label'] >= 10) & (counts['batch'] > 1)].index.tolist()
+    skipped_labels = list(set(np.unique(cell_labels)) - set(valid_labels))
+    
+    if verbose:
+        print(f"{len(skipped_labels)} 个标签只有单个批次或太小，已跳过。")
+    
+    # 准备kBET分数
+    kBET_scores = {"cluster": skipped_labels, "kBET": [np.nan] * len(skipped_labels)}
+    
+    # 对每个有效的细胞类型计算kBET
+    for clus in valid_labels:
+        clus_idx = np.where(cell_labels == clus)[0]
+        clus_batches = batch_numeric[clus_idx]
+        
+        # 计算k0（邻居数量）
+        batch_counts = np.array([np.sum(clus_batches == i) for i in range(n_batches)])
+        quarter_mean = np.floor(np.mean(batch_counts[batch_counts > 0]) / 4).astype(int)
+        k0 = np.min([70, np.max([10, quarter_mean])])
+        
+        # 计算拒绝率
+        rejection_rate = calculate_rejection_rate(
+            knn_indices[clus_idx],
+            batch_numeric,
+            global_batch_dist,
+            k0,
+            verbose
+        )
+        
+        kBET_scores["cluster"].append(clus)
+        kBET_scores["kBET"].append(rejection_rate)
+    
+    # 转换为DataFrame
+    kBET_df = pd.DataFrame.from_dict(kBET_scores)
+    
+    if return_df:
+        return kBET_df
+    
+    # 计算最终分数
+    final_score = np.nanmean(kBET_df["kBET"])
+    
+    # 缩放分数
+    return 1 - final_score if scaled else final_score
+
+
+def calculate_rejection_rate(neighbors_idx, batch_labels, global_dist, k0, verbose=False):
+    """计算kBET拒绝率"""
+    n_cells = neighbors_idx.shape[0]
+    n_batches = len(global_dist)
+    rejection_count = 0
+    total_tests = 0
+    
+    # 对每个细胞进行检验
+    for i in range(n_cells):
+        # 限制为k0个邻居
+        k_limit = min(k0, neighbors_idx.shape[1])
+        nn_idx = neighbors_idx[i, :k_limit]
+        
+        # 过滤无效的邻居索引
+        valid_idx = nn_idx[nn_idx >= 0]
+        
+        if len(valid_idx) < 5:  # 邻居太少
+            continue
+        
+        # 计算局部批次分布
+        local_counts = np.zeros(n_batches)
+        for b in range(n_batches):
+            local_counts[b] = np.sum(batch_labels[valid_idx] == b)
+        
+        # 计算期望计数
+        expected_counts = global_dist * len(valid_idx)
+        
+        # 进行卡方检验
+        chi_sq_stat = 0
+        dof = 0
+        
+        for b in range(n_batches):
+            if expected_counts[b] > 0:
+                chi_sq_stat += ((local_counts[b] - expected_counts[b]) ** 2) / expected_counts[b]
+                dof += 1
+        
+        if dof > 1:
+            dof -= 1  # 自由度为有效批次数-1
+            p_val = 1 - chi2.cdf(chi_sq_stat, dof)
+            
+            # 如果p值小于0.05，则拒绝原假设
+            if p_val < 0.05:
+                rejection_count += 1
+            
+            total_tests += 1
+    
+    # 计算拒绝率
+    if total_tests > 0:
+        return rejection_count / total_tests
+    else:
+        return np.nan
+
+
+
