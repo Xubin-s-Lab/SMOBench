@@ -19,7 +19,7 @@ y_pred = RunLeiden(adj_matrix) ###y_pred  your predict label
 reducer = umap.UMAP()
 umap_coord = reducer.fit_transform(fin) ####umap coordinate need save it for visualization
 
-###########calculate metric should use twice, depending on the dataset with ground truth or without ground truth
+###########calculate metric should use three times, depending on the dataset with ground truth or without ground truth
 labels = pd.read_csv('xx.csv')/ np.load('xx.npy')
 y_test = labels ##### Ground Truth
 batches = np.load('xx.npy') ###batch information
@@ -73,6 +73,7 @@ metrics_dict = {
     'kBET' : kBET_from_knn_matrix(adj_matrix, batches, y_test) 
     'asw_celltype':silhouette_simple(embeddings, y_test)
     'graph_clisi': graph_clisi(adj_matrix, cell_labels)
+
     'Graph Connectivity': graph_connectivity(embedding, np.ravel(y_test)),
     'ARI': metrics.adjusted_rand_score(np.ravel(y_test), np.ravel(y_pred)),
     'NMI': metrics.normalized_mutual_info_score(np.ravel(y_test), np.ravel(y_pred)),
@@ -95,8 +96,8 @@ df1.to_csv(f'./{Method}_{dataset}_fusion_cluster_metrics_with_GT.csv', index=Fal
                   
 # Dataset without ground truth
 metrics_dict = {
-
-    'Graph Connectivity': graph_connectivity(embedding, np.ravel(y_test)),
+    
+   # 'Graph Connectivity': graph_connectivity(embedding, np.ravel(y_test)),
     'Silhouette Coefficient': metrics.silhouette_score(embedding, y_pred, metric='euclidean'),
     'Calinski-Harabaz Index': metrics.calinski_harabasz_score(embedding, y_pred),
     'Davies-Bouldin Index': metrics.davies_bouldin_score(embedding, y_pred),
