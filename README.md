@@ -1,5 +1,5 @@
-# SpatialMultiomicsBenchmarking
-Benchmarking algorithms for spatial multi-omics fusion
+# SMOBench
+Benchmarking algorithms for spatial multimodal omics integration
 
 ![Local Image](./Framework/FrameWork.jpg)
 
