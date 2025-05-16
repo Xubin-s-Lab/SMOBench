@@ -1,0 +1,52 @@
+#!/bin/bash
+#PBS -N COSMOS_Training
+#PBS -q normal            
+#PBS -l select=1:ngpus=1:mem=880G
+#PBS -l walltime=20:00:00
+#PBS -o /home/users/nus/dmeng/scratch/spbench/yjxiao/log/HLN_Fusion_COSMOS/gpu.o
+#PBS -e /home/users/nus/dmeng/scratch/spbench/yjxiao/log/HLN_Fusion_COSMOS/gpu.e
+
+# 激活你的环境
+source activate cosmos
+
+# 设置变量
+Dataset="HLN_Fusion"  # 注意不要有空格
+Method="COSMOS"
+Section="train"
+JOB_NAME="COSMOS_Training"
+
+# 创建日志目录
+LOG_DIR="/home/users/nus/dmeng/scratch/spbench/yjxiao/log/${Dataset}_${Method}"
+mkdir -p "${LOG_DIR}"
+
+# 输出作业信息
+echo "PBS_JOBID: $PBS_JOBID" > ${LOG_DIR}/gpu.info
+echo "hostname: $(hostname)" >> ${LOG_DIR}/gpu.info
+echo "export PBS_JOBID=$PBS_JOBID" > ${LOG_DIR}/ssh_node
+echo "ssh $(hostname)" >> ${LOG_DIR}/ssh_node
+
+# 删除文件脚本
+echo "rm *.e *.o *.info ssh_node delete_all" > ${LOG_DIR}/delete_all
+chmod +x ${LOG_DIR}/ssh_node
+chmod +x ${LOG_DIR}/delete_all
+
+# 记录开始时间
+start_time=$(date +%s)
+
+# 转到工作目录
+cd $PBS_O_WORKDIR
+
+# 记录日志开始
+LOG_FILE="${LOG_DIR}/${JOB_NAME}_${Method}_${Dataset}_${Section}.log"
+echo "Job started at: $(date)" > "$LOG_FILE"
+
+# 执行训练脚本
+python /home/users/nus/dmeng/scratch/spbench/yjxiao/COSMOS/train.py >> "$LOG_FILE" 2>&1
+
+# 记录结束时间
+end_time=$(date +%s)
+echo "Job ended at: $(date)" >> "$LOG_FILE"
+
+# 运行时间记录
+elapsed_time=$((end_time - start_time))
+echo "Total run time: $((elapsed_time / 3600)) hours $(( (elapsed_time % 3600) / 60)) minutes $((elapsed_time % 60)) seconds" >> "$LOG_FILE"

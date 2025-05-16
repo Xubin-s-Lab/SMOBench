@@ -1,0 +1,44 @@
+#!/bin/bash
+#PBS -N PRAGA_SPOTS_S1
+#PBS -q normal
+#PBS -l select=1:ngpus=1:mem=880G
+#PBS -l walltime=20:00:00
+#PBS -o /home/users/nus/dmeng/scratch/spbench/xlhuang/SpatialGlue/PBS/PRAGA/log/PRAGA_SPOTS_S1.o
+#PBS -e /home/users/nus/dmeng/scratch/spbench/xlhuang/SpatialGlue/PBS/PRAGA/log/PRAGA_SPOTS_S1.e
+
+
+# 
+Dataset= 'HLN'
+Method ='PRAGA'
+Section= 'D1'
+JOB_NAME="benchmark"
+
+echo "PBS_JOBID: $PBS_JOBID" > /home/users/nus/dmeng/scratch/spbench/xlhuang/SpatialGlue/PBS/PRAGA/log/PRAGA_gpu.info
+echo "hostname: $(hostname)" >> /home/users/nus/dmeng/scratch/spbench/xlhuang/SpatialGlue/PBS/PRAGA/log/PRAGA_gpu.info
+
+echo "export PBS_JOBID=$PBS_JOBID" > /home/users/nus/dmeng/scratch/spbench/xlhuang/SpatialGlue/PBS/PRAGA/log/PRAGA_ssh_node
+echo "ssh $(hostname)" >> /home/users/nus/dmeng/scratch/spbench/xlhuang/SpatialGlue/PBS/PRAGA/log/PRAGA_ssh_node
+
+echo "rm *.e *.o *.info ssh_node delete_all" > /home/users/nus/dmeng/scratch/spbench/xlhuang/SpatialGlue/PBS/PRAGA/log/delete_all
+
+chmod +x /home/users/nus/dmeng/scratch/spbench/xlhuang/SpatialGlue/PBS/PRAGA/log/PRAGA_ssh_node
+chmod +x /home/users/nus/dmeng/scratch/spbench/xlhuang/SpatialGlue/PBS/PRAGA/log/delete_all
+
+source ~/.bashrc  # 确保加载conda初始化配置
+conda activate SpaMosaic
+
+start_time=$(date +%s)
+
+cd $PBS_O_WORKDIR
+
+mkdir -p ./log
+echo "Job started at: $(date)" > /home/users/nus/dmeng/scratch/spbench/xlhuang/SpatialGlue/PBS/PRAGA/log/${JOB_NAME}_${Method}_${Dataset}_${Section}.log
+
+python /home/users/nus/dmeng/scratch/spbench/xlhuang/SpatialGlue/main_PRAGA.py --data_type Stereo-CITE-seq --RNA_path /home/users/nus/dmeng/scratch/spbench/Datasets/Mouse_Thymus/Dataset3_Mouse_Thymus1/adata_RNA.h5ad --ADT_path /home/users/nus/dmeng/scratch/spbench/Datasets/Mouse_Thymus/Dataset3_Mouse_Thymus1/adata_ADT.h5ad --save_path /home/users/nus/dmeng/scratch/spbench/xlhuang/SpatialGlue/Results_PRAGA/Mouse_Thymus/slice1/PRAGA_MT_s1.h5ad
+
+end_time=$(date +%s)
+echo "Job ended at: $(date)" >> /home/users/nus/dmeng/scratch/spbench/xlhuang/SpatialGlue/PBS/PRAGA/log/${JOB_NAME}_${Method}_${Dataset}_${Section}.log
+
+elapsed_time=$((end_time - start_time))
+echo "Total run time: $((elapsed_time / 3600)) hours $(( (elapsed_time % 3600) / 60)) minutes $((elapsed_time % 60)) seconds" >> /home/users/nus/dmeng/scratch/spbench/xlhuang/SpatialGlue/PBS/PRAGA/log/${JOB_NAME}_${Method}_${Dataset}_${Section}.log
+

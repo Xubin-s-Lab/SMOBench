@@ -1,0 +1,29 @@
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+			Resource Usage on 2025-04-09 15:34:01.600613:
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+	JobId: 9940866.pbs101
+	Project: personal-dmeng
+	Exit Status: 0
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+	NCPUs: Requested(16), Used(16)
+	CPU Time Used: 00:00:58
+	Memory: Requested(110gb), Used(2425920kb)
+	Vmem Used: 15740016kb
+	Walltime: Requested(20:00:00), Used(00:01:39)
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+	Execution Nodes Used: (x1000c2s0b0n0:ngpus=1:mem=115343360kb:ncpus=16)
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+	GPU Duration: 1.69mins
+	GPU Power Consumed: 56.2W
+	GPU Max GPU Memory Used: 2.18GB
+	Memory Throughput Rate (Average): x1000c2s0b0n0:(gpu0:4%)
+	Memory Throughput Rate (Max): x1000c2s0b0n0:(gpu0:23%)
+	Memory Throughput Rate (Min): x1000c2s0b0n0:(gpu0:0%)
+	GPU SM Utilization (Average): x1000c2s0b0n0:(gpu0:10%)
+	GPU SM Utilization (Max): x1000c2s0b0n0:(gpu0:53%)
+	GPU SM Utilization (Min): x1000c2s0b0n0:(gpu0:0%)
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+Warning: None
+GPU application profile: Low
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
